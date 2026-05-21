@@ -1,39 +1,41 @@
 import sys
 import os
 import time
-import asyncio
 from threading import Thread
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 # ═══════════════════════════════════════════════════════════════
-# 1. START HEALTH SERVER IMMEDIATELY — before ANY other imports
+# HEALTH SERVER FOR RENDER
 # ═══════════════════════════════════════════════════════════════
 
-class _HealthHandler(BaseHTTPRequestHandler):
+class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.send_header("Content-type", "text/plain")
         self.end_headers()
-        self.wfile.write(b"OK")
-    def log_message(self, format, *args):
-        pass
+        self.wfile.write(b"Bot is running")
 
-def _run_health():
+    def log_message(self, format, *args):
+        return
+
+
+def run_health_server():
     port = int(os.getenv("PORT", 8000))
-    server = HTTPServer(("0.0.0.0", port), _HealthHandler)
+    server = HTTPServer(("0.0.0.0", port), HealthHandler)
     server.serve_forever()
 
-t = Thread(target=_run_health, daemon=True)
-t.start()
+
+Thread(target=run_health_server, daemon=True).start()
 
 # ═══════════════════════════════════════════════════════════════
-# 2. Print-based logging (more reliable on Render than logging module)
+# LOGGING
 # ═══════════════════════════════════════════════════════════════
 
-def log(msg):
-    print(f"BOT: {msg}", flush=True)
+def log(message):
+    print(f"BOT: {message}", flush=True)
 
-log("Health server started, importing modules...")
+
+log("Health server started")
 
 import logging
 
@@ -46,19 +48,25 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-try:
+# ═══════════════════════════════════════════════════════════════
+# IMPORTS
+# ═══════════════════════════════════════════════════════════════
 
+try:
     from telegram.ext import (
         Application,
         CommandHandler,
         CallbackQueryHandler,
     )
+
     log("telegram.ext imported")
 
     from config import BOT_TOKEN
-    log(f"config imported, BOT_TOKEN={'set' if BOT_TOKEN else 'MISSING!'}")
+
+    log(f"BOT_TOKEN loaded: {'YES' if BOT_TOKEN else 'NO'}")
 
     from handlers.start_handler import start
+
     log("start_handler imported")
 
     from handlers.menu_handler import (
@@ -66,75 +74,126 @@ try:
         deals_menu_callback,
         free_menu_callback,
     )
+
     log("menu_handler imported")
 
     from handlers.steam_handler import steam_deals_callback
+
     log("steam_handler imported")
 
     from handlers.epic_handler import epic_deals_callback
+
     log("epic_handler imported")
 
     from handlers.free_handler import (
         epic_free_callback,
         steam_free_callback,
     )
-    log("free_handler imported")
 
-    logger.info("All modules imported successfully")
+    log("free_handler imported")
 
 except Exception as e:
     log(f"IMPORT ERROR: {e}")
+
     import traceback
+
     log(traceback.format_exc())
+
     while True:
         time.sleep(60)
-        log("Alive (import error)")
-
 
 # ═══════════════════════════════════════════════════════════════
-# 3. Main bot logic
+# MAIN
 # ═══════════════════════════════════════════════════════════════
 
 def main():
 
-    log("Entering main()")
+    log("Starting bot...")
 
     if not BOT_TOKEN:
-        log("FATAL: BOT_TOKEN is empty!")
+        log("ERROR: BOT_TOKEN missing")
+
         while True:
             time.sleep(60)
-
-    # Create event loop for Python 3.14 compatibility
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-
-    log("Building Application...")
 
     try:
         app = Application.builder().token(BOT_TOKEN).build()
-        log("Application built")
 
+        log("Application created")
+
+        # COMMANDS
         app.add_handler(CommandHandler("start", start))
-        app.add_handler(CallbackQueryHandler(main_menu_callback, pattern="^main_menu$"))
-        app.add_handler(CallbackQueryHandler(deals_menu_callback, pattern="^deals_menu$"))
-        app.add_handler(CallbackQueryHandler(free_menu_callback, pattern="^free_menu$"))
-        app.add_handler(CallbackQueryHandler(steam_deals_callback, pattern="^steam_deals_"))
-        app.add_handler(CallbackQueryHandler(epic_deals_callback, pattern="^epic_deals_"))
-        app.add_handler(CallbackQueryHandler(epic_free_callback, pattern="^epic_free_"))
-        app.add_handler(CallbackQueryHandler(steam_free_callback, pattern="^steam_free_"))
-        log("Handlers registered")
 
-        logger.info("Bot is running")
-        log("Starting polling...")
-        app.run_polling(loop=loop)
+        # MAIN MENU
+        app.add_handler(
+            CallbackQueryHandler(
+                main_menu_callback,
+                pattern="^main_menu$"
+            )
+        )
+
+        # DEALS MENU
+        app.add_handler(
+            CallbackQueryHandler(
+                deals_menu_callback,
+                pattern="^deals_menu$"
+            )
+        )
+
+        # FREE MENU
+        app.add_handler(
+            CallbackQueryHandler(
+                free_menu_callback,
+                pattern="^free_menu$"
+            )
+        )
+
+        # STEAM DEALS
+        app.add_handler(
+            CallbackQueryHandler(
+                steam_deals_callback,
+                pattern="^steam_deals_"
+            )
+        )
+
+        # EPIC DEALS
+        app.add_handler(
+            CallbackQueryHandler(
+                epic_deals_callback,
+                pattern="^epic_deals_"
+            )
+        )
+
+        # EPIC FREE
+        app.add_handler(
+            CallbackQueryHandler(
+                epic_free_callback,
+                pattern="^epic_free_"
+            )
+        )
+
+        # STEAM FREE
+        app.add_handler(
+            CallbackQueryHandler(
+                steam_free_callback,
+                pattern="^steam_free_"
+            )
+        )
+
+        log("Handlers registered")
+        logger.info("Bot started successfully")
+
+        app.run_polling()
 
     except Exception as e:
         log(f"BOT ERROR: {e}")
+
         import traceback
+
         log(traceback.format_exc())
+
         while True:
             time.sleep(60)
-            log("Alive (bot error)")
 
 
 if __name__ == "__main__":
