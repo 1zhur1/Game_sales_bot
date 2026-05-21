@@ -92,6 +92,7 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_deals_cache_store ON deals_cache(store);
         CREATE INDEX IF NOT EXISTS idx_deals_cache_title ON deals_cache(title);
         CREATE INDEX IF NOT EXISTS idx_notifications_history_user ON notifications_history(user_id, game_title, store);
+
         CREATE TABLE IF NOT EXISTS user_filters (
             user_id INTEGER PRIMARY KEY,
             selected_genres TEXT DEFAULT '',
@@ -106,11 +107,21 @@ def init_db():
             updated_at REAL DEFAULT (strftime('%s', 'now'))
         );
 
+        CREATE TABLE IF NOT EXISTS user_notif_filters (
+            user_id INTEGER PRIMARY KEY,
+            selected_genres TEXT DEFAULT '',
+            min_discount INTEGER DEFAULT 0,
+            max_price REAL DEFAULT 0,
+            platform TEXT DEFAULT 'all',
+            filter_type TEXT DEFAULT 'all',
+            rating_filter INTEGER DEFAULT 0,
+            updated_at REAL DEFAULT (strftime('%s', 'now'))
+        );
+
         CREATE INDEX IF NOT EXISTS idx_price_history_game ON price_history(game_title, store);
     """)
 
     # ─── Миграции для существующей БД ─────────────
-    # Добавляем колонки, которых может не быть в старой схеме
     migrations = [
         "ALTER TABLE users ADD COLUMN notifications_enabled INTEGER DEFAULT 1",
         "ALTER TABLE users ADD COLUMN min_discount_percent INTEGER DEFAULT 0",
@@ -123,7 +134,7 @@ def init_db():
             conn.execute(migration)
             log(f"Migration applied: {migration}")
         except sqlite3.OperationalError:
-            pass  # Колонка уже существует
+            pass
 
     conn.commit()
     conn.close()
@@ -537,7 +548,6 @@ async def get_deal_count(store: Optional[str] = None, is_free: bool = False,
 
 
 async def search_deals_cache(query: str, limit: int = 20) -> list[dict]:
-    """Поиск по названию в кэше (LIKE)."""
     pattern = f"%{query}%"
     rows = await fetchall(
         """SELECT id, title, store, price, original_price, discount_percent,
@@ -626,7 +636,6 @@ async def add_notification_history(user_id: int, game_title: str, store: str,
 
 async def has_recent_notification(user_id: int, game_title: str, store: str,
                                    notification_type: str, hours: int = 24) -> bool:
-    """Проверяет, было ли отправлено такое уведомление за последние N часов."""
     cutoff = time.time() - (hours * 3600)
     row = await fetchone(
         """SELECT id FROM notifications_history
@@ -707,8 +716,9 @@ async def add_known_deal(deal_id: str, title: str, store: str,
     )
 
 
+# ─── Фильтры для магазинов ─────────────────────
+
 async def get_user_filters(user_id: int) -> dict:
-    """Получить фильтры пользователя. Если нет — создаёт со значениями по умолчанию."""
     row = await fetchone(
         """SELECT selected_genres, min_discount, max_price, platform,
                   filter_type, sort_type, rating_filter, language_filter, multiplayer_filter
@@ -727,7 +737,6 @@ async def get_user_filters(user_id: int) -> dict:
             "language_filter": row[7],
             "multiplayer_filter": row[8],
         }
-    # Создаём фильтры по умолчанию
     await execute(
         """INSERT OR IGNORE INTO user_filters (user_id) VALUES (?)""",
         (user_id,)
@@ -746,14 +755,12 @@ async def get_user_filters(user_id: int) -> dict:
 
 
 async def update_user_filter(user_id: int, field: str, value) -> None:
-    """Обновить одно поле фильтра."""
     allowed_fields = {
         "selected_genres", "min_discount", "max_price", "platform",
         "filter_type", "sort_type", "rating_filter", "language_filter", "multiplayer_filter"
     }
     if field not in allowed_fields:
         return
-    # Убедимся, что запись существует
     await execute(
         """INSERT OR IGNORE INTO user_filters (user_id) VALUES (?)""",
         (user_id,)
@@ -767,7 +774,6 @@ async def update_user_filter(user_id: int, field: str, value) -> None:
 
 
 async def reset_user_filters(user_id: int) -> None:
-    """Сбросить все фильтры пользователя."""
     await execute(
         """INSERT OR REPLACE INTO user_filters
            (user_id, selected_genres, min_discount, max_price, platform,
@@ -779,3 +785,67 @@ async def reset_user_filters(user_id: int) -> None:
 
 async def get_latest_new_deals(limit: int = 10) -> list[dict]:
     return await get_deals_from_cache(limit=limit, offset=0)
+
+
+# ─── Фильтры для уведомлений (независимые) ─────
+
+async def get_user_notif_filters(user_id: int) -> dict:
+    """Получить фильтры уведомлений. Если нет — создаёт со значениями по умолчанию."""
+    row = await fetchone(
+        """SELECT selected_genres, min_discount, max_price, platform,
+                  filter_type, rating_filter
+           FROM user_notif_filters WHERE user_id = ?""",
+        (user_id,)
+    )
+    if row:
+        return {
+            "selected_genres": row[0].split(",") if row[0] else [],
+            "min_discount": row[1],
+            "max_price": row[2],
+            "platform": row[3],
+            "filter_type": row[4],
+            "rating_filter": row[5],
+        }
+    await execute(
+        """INSERT OR IGNORE INTO user_notif_filters (user_id) VALUES (?)""",
+        (user_id,)
+    )
+    return {
+        "selected_genres": [],
+        "min_discount": 0,
+        "max_price": 0,
+        "platform": "all",
+        "filter_type": "all",
+        "rating_filter": 0,
+    }
+
+
+async def update_user_notif_filter(user_id: int, field: str, value) -> None:
+    """Обновить одно поле фильтра уведомлений."""
+    allowed_fields = {
+        "selected_genres", "min_discount", "max_price", "platform",
+        "filter_type", "rating_filter"
+    }
+    if field not in allowed_fields:
+        return
+    await execute(
+        """INSERT OR IGNORE INTO user_notif_filters (user_id) VALUES (?)""",
+        (user_id,)
+    )
+    if field == "selected_genres" and isinstance(value, list):
+        value = ",".join(value)
+    await execute(
+        f"UPDATE user_notif_filters SET {field} = ?, updated_at = strftime('%s', 'now') WHERE user_id = ?",
+        (value, user_id)
+    )
+
+
+async def reset_user_notif_filters(user_id: int) -> None:
+    """Сбросить все фильтры уведомлений."""
+    await execute(
+        """INSERT OR REPLACE INTO user_notif_filters
+           (user_id, selected_genres, min_discount, max_price, platform,
+            filter_type, rating_filter, updated_at)
+           VALUES (?, '', 0, 0, 'all', 'all', 0, strftime('%s', 'now'))""",
+        (user_id,)
+    )

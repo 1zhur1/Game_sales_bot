@@ -322,7 +322,6 @@ def my_favorites_keyboard(favorites: list[dict], page: int = 0, items_per_page: 
 def settings_keyboard(user_settings: dict):
     """Настройки пользователя."""
     notif_status = "✅ Вкл" if user_settings.get("notifications_enabled", True) else "❌ Выкл"
-    min_discount = user_settings.get("min_discount_percent", 0)
 
     return InlineKeyboardMarkup([
         [
@@ -333,8 +332,8 @@ def settings_keyboard(user_settings: dict):
         ],
         [
             InlineKeyboardButton(
-                f"📉 Мин. скидка: {min_discount}%",
-                callback_data="settings_min_discount",
+                "🎯 Фильтры уведомлений",
+                callback_data="settings_notif_filters",
             ),
         ],
         [
@@ -358,12 +357,35 @@ def discount_filter_keyboard_v1(current: int = 0):
             row = []
     if row:
         buttons.append(row)
-
     buttons.append([
         InlineKeyboardButton("◀️ Назад", callback_data="settings_menu"),
     ])
 
     return InlineKeyboardMarkup(buttons)
+
+
+def notif_filters_main_keyboard(notif_filters: dict):
+    """Главное меню фильтров уведомлений."""
+    genres = notif_filters.get("selected_genres", [])
+    genres_text = f"{len(genres)} жанров" if genres else "Все"
+    md = notif_filters.get("min_discount", 0)
+    md_text = f"{md}%" if md > 0 else "Любая"
+    pf = notif_filters.get("platform", "all")
+    plat_names = {"all": "Все", "steam": "Steam", "epic games": "Epic Games"}
+    ft = notif_filters.get("filter_type", "all")
+    ft_names = {"all": "Всё", "discounts": "Скидки", "free": "Халява"}
+    rf = notif_filters.get("rating_filter", 0)
+    rf_text = f"{rf}%+" if rf > 0 else "Любой"
+
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(f"🎭 Жанры: {genres_text}", callback_data="nf_genres")],
+        [InlineKeyboardButton(f"💸 Мин. скидка: {md_text}", callback_data="nf_discount")],
+        [InlineKeyboardButton(f"🖥 Платформа: {plat_names.get(pf, pf)}", callback_data="nf_platform")],
+        [InlineKeyboardButton(f"🎯 Тип: {ft_names.get(ft, ft)}", callback_data="nf_type")],
+        [InlineKeyboardButton(f"⭐ Рейтинг: {rf_text}", callback_data="nf_rating")],
+        [InlineKeyboardButton("🧹 Сбросить", callback_data="nf_reset")],
+        [InlineKeyboardButton("◀️ Назад", callback_data="settings_menu")],
+    ])
 
 
 # ═══════════════════════════════════════════════════════════════
