@@ -5,6 +5,7 @@ from telegram.ext import (
 )
 
 from config import BOT_TOKEN
+from server import start_health_server
 
 from handlers.start_handler import start
 from handlers.menu_handler import (
@@ -88,6 +89,8 @@ def main():
     )
 
     logger.info("Bot running")
+
+    start_health_server()
 
     app.run_polling()
 
