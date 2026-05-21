@@ -1,3 +1,6 @@
+import sys
+import logging
+
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -21,17 +24,31 @@ from handlers.free_handler import (
     steam_free_callback,
 )
 
-import logging
-
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(message)s",
     level=logging.INFO,
+    stream=sys.stdout,
+    force=True,
 )
 
 logger = logging.getLogger(__name__)
 
 
 def main():
+
+    logger.info("Startup: checking BOT_TOKEN")
+
+    start_health_server()
+
+    if not BOT_TOKEN:
+        logger.error("BOT_TOKEN not set! Check environment variables on Render.")
+        logger.info("Health server running, waiting forever...")
+        import time
+        while True:
+            time.sleep(60)
+            logger.info("Still alive, waiting for BOT_TOKEN...")
+
+    logger.info("BOT_TOKEN found, starting Telegram bot")
 
     logger.info("Bot started")
 
@@ -89,8 +106,6 @@ def main():
     )
 
     logger.info("Bot running")
-
-    start_health_server()
 
     app.run_polling()
 
