@@ -20,7 +20,7 @@ CACHE_TTL = 3600
 
 CHEAPSHARK_URL = (
     "https://www.cheapshark.com/api/1.0/deals"
-    "?storeID=1&pageSize=60"
+    "?storeID=1&pageSize=100"
 )
 
 
@@ -141,7 +141,7 @@ async def get_steam_deals():
             reverse=True
         )
 
-        games = games[:60]
+        games = games[:100]
 
         set_cache("steam_deals", games)
 

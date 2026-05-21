@@ -58,6 +58,8 @@ try:
         Application,
         CommandHandler,
         CallbackQueryHandler,
+        MessageHandler,
+        filters,
     )
 
     log("telegram.ext imported")
@@ -98,6 +100,30 @@ try:
 
     log("free_handler imported")
 
+    from handlers.subscription_handler import (
+        subscribe_menu_callback,
+        subscribe_search_callback,
+        handle_subscribe_text,
+        subscribe_choose_callback,
+        subscribe_confirm_callback,
+        unsubscribe_callback,
+        my_subscriptions_callback,
+        favorite_callback,
+        my_favorites_callback,
+        game_info_callback,
+    )
+
+    log("subscription_handler imported")
+
+    from handlers.settings_handler import (
+        settings_menu_callback,
+        settings_toggle_notif_callback,
+        settings_min_discount_callback,
+        set_min_discount_callback,
+    )
+
+    log("settings_handler imported")
+
     from services.notification_service import check_and_notify
 
     log("notification_service imported")
@@ -131,10 +157,10 @@ def main():
 
         log("Application created")
 
-        # COMMANDS
+        # ─── COMMANDS ───────────────────────────
         app.add_handler(CommandHandler("start", start))
 
-        # MAIN MENU
+        # ─── MAIN MENU ──────────────────────────
         app.add_handler(
             CallbackQueryHandler(
                 main_menu_callback,
@@ -142,7 +168,7 @@ def main():
             )
         )
 
-        # DEALS MENU
+        # ─── DEALS MENU ─────────────────────────
         app.add_handler(
             CallbackQueryHandler(
                 deals_menu_callback,
@@ -150,7 +176,7 @@ def main():
             )
         )
 
-        # FREE MENU
+        # ─── FREE MENU ──────────────────────────
         app.add_handler(
             CallbackQueryHandler(
                 free_menu_callback,
@@ -158,7 +184,7 @@ def main():
             )
         )
 
-        # STEAM DEALS
+        # ─── STEAM DEALS ────────────────────────
         app.add_handler(
             CallbackQueryHandler(
                 steam_deals_callback,
@@ -166,7 +192,7 @@ def main():
             )
         )
 
-        # EPIC DEALS
+        # ─── EPIC DEALS ─────────────────────────
         app.add_handler(
             CallbackQueryHandler(
                 epic_deals_callback,
@@ -174,7 +200,7 @@ def main():
             )
         )
 
-        # EPIC FREE
+        # ─── EPIC FREE ──────────────────────────
         app.add_handler(
             CallbackQueryHandler(
                 epic_free_callback,
@@ -182,11 +208,122 @@ def main():
             )
         )
 
-        # STEAM FREE
+        # ─── STEAM FREE ─────────────────────────
         app.add_handler(
             CallbackQueryHandler(
                 steam_free_callback,
                 pattern="^steam_free_"
+            )
+        )
+
+        # ─── SUBSCRIPTION MENU ──────────────────
+        app.add_handler(
+            CallbackQueryHandler(
+                subscribe_menu_callback,
+                pattern="^subscribe_menu$"
+            )
+        )
+
+        app.add_handler(
+            CallbackQueryHandler(
+                subscribe_search_callback,
+                pattern="^subscribe_search$"
+            )
+        )
+
+        app.add_handler(
+            CallbackQueryHandler(
+                subscribe_choose_callback,
+                pattern="^sub_choose_"
+            )
+        )
+
+        app.add_handler(
+            CallbackQueryHandler(
+                subscribe_confirm_callback,
+                pattern="^sub_confirm_"
+            )
+        )
+
+        app.add_handler(
+            CallbackQueryHandler(
+                unsubscribe_callback,
+                pattern="^unsub_"
+            )
+        )
+
+        # ─── MY SUBSCRIPTIONS ───────────────────
+        app.add_handler(
+            CallbackQueryHandler(
+                my_subscriptions_callback,
+                pattern="^my_subscriptions_"
+            )
+        )
+
+        # ─── FAVORITES ──────────────────────────
+        app.add_handler(
+            CallbackQueryHandler(
+                favorite_callback,
+                pattern="^fav_"
+            )
+        )
+
+        app.add_handler(
+            CallbackQueryHandler(
+                my_favorites_callback,
+                pattern="^my_favorites_"
+            )
+        )
+
+        app.add_handler(
+            CallbackQueryHandler(
+                game_info_callback,
+                pattern="^game_info_"
+            )
+        )
+
+        # ─── SETTINGS ───────────────────────────
+        app.add_handler(
+            CallbackQueryHandler(
+                settings_menu_callback,
+                pattern="^settings_menu$"
+            )
+        )
+
+        app.add_handler(
+            CallbackQueryHandler(
+                settings_toggle_notif_callback,
+                pattern="^settings_toggle_notif$"
+            )
+        )
+
+        app.add_handler(
+            CallbackQueryHandler(
+                settings_min_discount_callback,
+                pattern="^settings_min_discount$"
+            )
+        )
+
+        app.add_handler(
+            CallbackQueryHandler(
+                set_min_discount_callback,
+                pattern="^set_min_discount_"
+            )
+        )
+
+        # ─── IGNORE CALLBACK ────────────────────
+        app.add_handler(
+            CallbackQueryHandler(
+                lambda update, context: update.callback_query.answer(),
+                pattern="^ignore$"
+            )
+        )
+
+        # ─── TEXT HANDLER (для поиска игр) ──────
+        app.add_handler(
+            MessageHandler(
+                filters.TEXT & ~filters.COMMAND,
+                handle_subscribe_text
             )
         )
 
@@ -200,11 +337,11 @@ def main():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
-        # Запускаем фоновую задачу уведомлений
+        # Запускаем фоновые задачи
         loop = asyncio.get_event_loop()
         loop.create_task(check_and_notify(app))
 
-        log("Notification task created")
+        log("Background tasks started")
 
         app.run_polling()
 

@@ -40,3 +40,37 @@ def format_game(game, index, total):
         f'🔗 <a href="{game.url}">Открыть магазин</a>\n\n'
         f"📄 {index + 1}/{total}"
     )
+
+
+def format_deal_from_cache(deal: dict, index: int, total: int) -> str:
+    """Форматирование сделки из кэша БД."""
+    title = html.escape(deal["title"])
+    store = deal["store"]
+    discount = deal["discount_percent"]
+    is_free = deal["is_free"]
+    price = deal.get("price", 0)
+    original = deal.get("original_price", 0)
+
+    if is_free:
+        return (
+            f"🎮 <b>{title}</b>\n\n"
+            f"🎁 <b>БЕСПЛАТНО</b>\n"
+            f"🏪 {store}\n\n"
+            f'🔗 <a href="{deal.get("url", "")}">Забрать игру</a>\n\n'
+            f"📄 {index + 1}/{total}"
+        )
+
+    text = f"🎮 <b>{title}</b>\n\n"
+
+    if original > 0:
+        text += f"🏷 <s>{original:.0f}₽</s>\n"
+
+    if price > 0:
+        text += f"💸 <b>{price:.0f}₽</b>\n"
+
+    text += f"🔥 Скидка: -{discount}%\n"
+    text += f"🏪 {store}\n\n"
+    text += f'🔗 <a href="{deal.get("url", "")}">Открыть магазин</a>\n\n'
+    text += f"📄 {index + 1}/{total}"
+
+    return text
