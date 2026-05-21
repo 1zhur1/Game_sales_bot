@@ -1,6 +1,7 @@
 import sys
 import os
 import time
+import asyncio  # 👈 Added for the Python 3.14 event loop fix
 from threading import Thread
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
@@ -182,6 +183,13 @@ def main():
 
         log("Handlers registered")
         logger.info("Bot started successfully")
+
+        # 👇 FIX: Ensure an event loop exists for the MainThread in Python 3.14
+        try:
+            asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
 
         app.run_polling()
 
