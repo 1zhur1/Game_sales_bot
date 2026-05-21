@@ -3,6 +3,7 @@ from telegram.ext import ContextTypes
 
 from keyboards import main_menu
 from services.subscription_service import check_subscription
+from database import add_user
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -19,6 +20,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         return
+
+    # Регистрируем пользователя в БД
+    await add_user(update.effective_user.id)
 
     await update.message.reply_text(
         "🔥 WTF Steam Bot",

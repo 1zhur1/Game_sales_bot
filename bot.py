@@ -66,6 +66,11 @@ try:
 
     log(f"BOT_TOKEN loaded: {'YES' if BOT_TOKEN else 'NO'}")
 
+    from database import init_db
+
+    init_db()
+    log("Database initialized")
+
     from handlers.start_handler import start
 
     log("start_handler imported")
@@ -92,6 +97,10 @@ try:
     )
 
     log("free_handler imported")
+
+    from services.notification_service import check_and_notify
+
+    log("notification_service imported")
 
 except Exception as e:
     log(f"IMPORT ERROR: {e}")
@@ -190,6 +199,12 @@ def main():
         except RuntimeError:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
+
+        # Запускаем фоновую задачу уведомлений
+        loop = asyncio.get_event_loop()
+        loop.create_task(check_and_notify(app))
+
+        log("Notification task created")
 
         app.run_polling()
 
