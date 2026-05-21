@@ -3,3 +3,4 @@ aiohttp>=3.9.5
 requests>=2.32.3
 beautifulsoup4>=4.12.3
 aiosqlite>=0.20,<1.0
+rapidfuzz>=3.14.0
