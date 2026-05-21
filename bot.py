@@ -79,8 +79,10 @@ try:
 
     from handlers.menu_handler import (
         main_menu_callback,
-        deals_menu_callback,
+        store_menu_callback,
         free_menu_callback,
+        top_menu_callback,
+        my_menu_callback,
     )
 
     log("menu_handler imported")
@@ -124,6 +126,28 @@ try:
 
     log("settings_handler imported")
 
+    from handlers.filter_handler import (
+        filters_menu_callback,
+        filters_genres_callback,
+        filters_genre_toggle_callback,
+        filters_genres_done_callback,
+        filters_discount_callback,
+        filters_set_discount_callback,
+        filters_price_callback,
+        filters_set_price_callback,
+        filters_platform_callback,
+        filters_set_platform_callback,
+        filters_type_callback,
+        filters_set_type_callback,
+        filters_sort_callback,
+        filters_set_sort_callback,
+        filters_rating_callback,
+        filters_set_rating_callback,
+        filters_reset_callback,
+    )
+
+    log("filter_handler imported")
+
     from services.notification_service import check_and_notify
 
     log("notification_service imported")
@@ -160,162 +184,182 @@ def main():
         # ─── COMMANDS ───────────────────────────
         app.add_handler(CommandHandler("start", start))
 
-        # ─── MAIN MENU ──────────────────────────
+        # ═══════════════════════════════════════════════════════
+        # 🏠 ГЛАВНОЕ МЕНЮ
+        # ═══════════════════════════════════════════════════════
         app.add_handler(
-            CallbackQueryHandler(
-                main_menu_callback,
-                pattern="^main_menu$"
-            )
+            CallbackQueryHandler(main_menu_callback, pattern="^main_menu$")
         )
 
-        # ─── DEALS MENU ─────────────────────────
+        # ═══════════════════════════════════════════════════════
+        # 🎮 МАГАЗИНЫ
+        # ═══════════════════════════════════════════════════════
         app.add_handler(
-            CallbackQueryHandler(
-                deals_menu_callback,
-                pattern="^deals_menu$"
-            )
+            CallbackQueryHandler(store_menu_callback, pattern="^store_menu$")
         )
 
-        # ─── FREE MENU ──────────────────────────
+        # ─── Скидки ─────────────────────────────
         app.add_handler(
-            CallbackQueryHandler(
-                free_menu_callback,
-                pattern="^free_menu$"
-            )
+            CallbackQueryHandler(steam_deals_callback, pattern="^steam_deals_")
+        )
+        app.add_handler(
+            CallbackQueryHandler(epic_deals_callback, pattern="^epic_deals_")
         )
 
-        # ─── STEAM DEALS ────────────────────────
+        # ─── Халява ─────────────────────────────
         app.add_handler(
-            CallbackQueryHandler(
-                steam_deals_callback,
-                pattern="^steam_deals_"
-            )
+            CallbackQueryHandler(free_menu_callback, pattern="^free_menu$")
+        )
+        app.add_handler(
+            CallbackQueryHandler(epic_free_callback, pattern="^epic_free_")
+        )
+        app.add_handler(
+            CallbackQueryHandler(steam_free_callback, pattern="^steam_free_")
         )
 
-        # ─── EPIC DEALS ─────────────────────────
+        # ═══════════════════════════════════════════════════════
+        # 🔥 ТОП
+        # ═══════════════════════════════════════════════════════
         app.add_handler(
-            CallbackQueryHandler(
-                epic_deals_callback,
-                pattern="^epic_deals_"
-            )
+            CallbackQueryHandler(top_menu_callback, pattern="^top_menu$")
+        )
+        # Заглушки для будущих разделов — просто возвращают в топ-меню
+        app.add_handler(
+            CallbackQueryHandler(top_menu_callback, pattern="^recommendations$")
+        )
+        app.add_handler(
+            CallbackQueryHandler(top_menu_callback, pattern="^popular$")
+        )
+        app.add_handler(
+            CallbackQueryHandler(top_menu_callback, pattern="^new_releases$")
         )
 
-        # ─── EPIC FREE ──────────────────────────
+        # ═══════════════════════════════════════════════════════
+        # ❤️ МОЁ
+        # ═══════════════════════════════════════════════════════
         app.add_handler(
-            CallbackQueryHandler(
-                epic_free_callback,
-                pattern="^epic_free_"
-            )
+            CallbackQueryHandler(my_menu_callback, pattern="^my_menu$")
         )
 
-        # ─── STEAM FREE ─────────────────────────
+        # ─── Подписки ───────────────────────────
         app.add_handler(
-            CallbackQueryHandler(
-                steam_free_callback,
-                pattern="^steam_free_"
-            )
+            CallbackQueryHandler(subscribe_menu_callback, pattern="^subscribe_menu$")
+        )
+        app.add_handler(
+            CallbackQueryHandler(subscribe_search_callback, pattern="^subscribe_search$")
+        )
+        app.add_handler(
+            CallbackQueryHandler(subscribe_choose_callback, pattern="^sub_choose_")
+        )
+        app.add_handler(
+            CallbackQueryHandler(subscribe_confirm_callback, pattern="^sub_confirm_")
+        )
+        app.add_handler(
+            CallbackQueryHandler(unsubscribe_callback, pattern="^unsub_")
+        )
+        app.add_handler(
+            CallbackQueryHandler(my_subscriptions_callback, pattern="^my_subscriptions_")
         )
 
-        # ─── SUBSCRIPTION MENU ──────────────────
+        # ─── Избранное ──────────────────────────
         app.add_handler(
-            CallbackQueryHandler(
-                subscribe_menu_callback,
-                pattern="^subscribe_menu$"
-            )
+            CallbackQueryHandler(favorite_callback, pattern="^fav_")
+        )
+        app.add_handler(
+            CallbackQueryHandler(my_favorites_callback, pattern="^my_favorites_")
+        )
+        app.add_handler(
+            CallbackQueryHandler(game_info_callback, pattern="^game_info_")
         )
 
+        # ═══════════════════════════════════════════════════════
+        # ⚙️ НАСТРОЙКИ
+        # ═══════════════════════════════════════════════════════
         app.add_handler(
-            CallbackQueryHandler(
-                subscribe_search_callback,
-                pattern="^subscribe_search$"
-            )
+            CallbackQueryHandler(settings_menu_callback, pattern="^settings_menu$")
         )
-
-        app.add_handler(
-            CallbackQueryHandler(
-                subscribe_choose_callback,
-                pattern="^sub_choose_"
-            )
-        )
-
-        app.add_handler(
-            CallbackQueryHandler(
-                subscribe_confirm_callback,
-                pattern="^sub_confirm_"
-            )
-        )
-
-        app.add_handler(
-            CallbackQueryHandler(
-                unsubscribe_callback,
-                pattern="^unsub_"
-            )
-        )
-
-        # ─── MY SUBSCRIPTIONS ───────────────────
-        app.add_handler(
-            CallbackQueryHandler(
-                my_subscriptions_callback,
-                pattern="^my_subscriptions_"
-            )
-        )
-
-        # ─── FAVORITES ──────────────────────────
-        app.add_handler(
-            CallbackQueryHandler(
-                favorite_callback,
-                pattern="^fav_"
-            )
-        )
-
-        app.add_handler(
-            CallbackQueryHandler(
-                my_favorites_callback,
-                pattern="^my_favorites_"
-            )
-        )
-
-        app.add_handler(
-            CallbackQueryHandler(
-                game_info_callback,
-                pattern="^game_info_"
-            )
-        )
-
-        # ─── SETTINGS ───────────────────────────
-        app.add_handler(
-            CallbackQueryHandler(
-                settings_menu_callback,
-                pattern="^settings_menu$"
-            )
-        )
-
         app.add_handler(
             CallbackQueryHandler(
                 settings_toggle_notif_callback,
-                pattern="^settings_toggle_notif$"
+                pattern="^settings_toggle_notif$",
             )
         )
-
         app.add_handler(
             CallbackQueryHandler(
                 settings_min_discount_callback,
-                pattern="^settings_min_discount$"
+                pattern="^settings_min_discount$",
             )
         )
+        app.add_handler(
+            CallbackQueryHandler(set_min_discount_callback, pattern="^set_min_discount_")
+        )
 
+        # ═══════════════════════════════════════════════════════
+        # 🎯 ФИЛЬТРЫ
+        # ═══════════════════════════════════════════════════════
+        app.add_handler(
+            CallbackQueryHandler(filters_menu_callback, pattern="^filters_menu$")
+        )
+        app.add_handler(
+            CallbackQueryHandler(filters_genres_callback, pattern="^filters_genres$")
+        )
         app.add_handler(
             CallbackQueryHandler(
-                set_min_discount_callback,
-                pattern="^set_min_discount_"
+                filters_genre_toggle_callback,
+                pattern="^fgenre_toggle_",
             )
+        )
+        app.add_handler(
+            CallbackQueryHandler(filters_genres_done_callback, pattern="^fgenre_done$")
+        )
+        app.add_handler(
+            CallbackQueryHandler(filters_discount_callback, pattern="^filters_discount$")
+        )
+        app.add_handler(
+            CallbackQueryHandler(
+                filters_set_discount_callback,
+                pattern="^fset_discount_",
+            )
+        )
+        app.add_handler(
+            CallbackQueryHandler(filters_price_callback, pattern="^filters_price$")
+        )
+        app.add_handler(
+            CallbackQueryHandler(filters_set_price_callback, pattern="^fset_price_")
+        )
+        app.add_handler(
+            CallbackQueryHandler(filters_platform_callback, pattern="^filters_platform$")
+        )
+        app.add_handler(
+            CallbackQueryHandler(filters_set_platform_callback, pattern="^fset_platform_")
+        )
+        app.add_handler(
+            CallbackQueryHandler(filters_type_callback, pattern="^filters_type$")
+        )
+        app.add_handler(
+            CallbackQueryHandler(filters_set_type_callback, pattern="^fset_type_")
+        )
+        app.add_handler(
+            CallbackQueryHandler(filters_sort_callback, pattern="^filters_sort$")
+        )
+        app.add_handler(
+            CallbackQueryHandler(filters_set_sort_callback, pattern="^fset_sort_")
+        )
+        app.add_handler(
+            CallbackQueryHandler(filters_rating_callback, pattern="^filters_rating$")
+        )
+        app.add_handler(
+            CallbackQueryHandler(filters_set_rating_callback, pattern="^fset_rating_")
+        )
+        app.add_handler(
+            CallbackQueryHandler(filters_reset_callback, pattern="^filters_reset$")
         )
 
         # ─── IGNORE CALLBACK ────────────────────
         app.add_handler(
             CallbackQueryHandler(
                 lambda update, context: update.callback_query.answer(),
-                pattern="^ignore$"
+                pattern="^ignore$",
             )
         )
 
@@ -323,22 +367,16 @@ def main():
         app.add_handler(
             MessageHandler(
                 filters.TEXT & ~filters.COMMAND,
-                handle_subscribe_text
+                handle_subscribe_text,
             )
         )
 
         log("Handlers registered")
         logger.info("Bot started successfully")
 
-        # 👇 FIX: Ensure an event loop exists for the MainThread in Python 3.14
-        try:
-            asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
         # Запускаем фоновые задачи
-        loop = asyncio.get_event_loop()
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         loop.create_task(check_and_notify(app))
 
         log("Background tasks started")

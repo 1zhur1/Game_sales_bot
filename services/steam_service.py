@@ -20,7 +20,7 @@ CACHE_TTL = 3600
 
 CHEAPSHARK_URL = (
     "https://www.cheapshark.com/api/1.0/deals"
-    "?storeID=1&pageSize=100"
+    "?storeID=1&pageSize=500"
 )
 
 
@@ -96,15 +96,6 @@ async def get_steam_deals():
                     )
                 )
 
-                if rating < 70:
-                    continue
-
-                if discount < 50:
-                    continue
-
-                if reviews < 50:
-                    continue
-
                 app_id = item.get("steamAppID")
 
                 image = (
@@ -140,8 +131,6 @@ async def get_steam_deals():
             ),
             reverse=True
         )
-
-        games = games[:100]
 
         set_cache("steam_deals", games)
 

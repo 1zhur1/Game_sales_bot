@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import List
 
 
 @dataclass
@@ -14,3 +15,4 @@ class GameDeal:
     image: str
     store: str
     is_free: bool = False
+    genres: List[str] = field(default_factory=list)

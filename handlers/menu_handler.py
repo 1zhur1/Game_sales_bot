@@ -1,70 +1,85 @@
+"""
+🎮 GameHub — Обработчики меню.
+
+Все callback'и навигации по разделам бота.
+"""
+
+from telegram.constants import ParseMode
+
 from keyboards import (
     main_menu,
-    deals_menu_keyboard,
+    store_menu_keyboard,
     free_menu_keyboard,
+    top_menu_keyboard,
+    my_menu_keyboard,
 )
-
+from utils import (
+    main_menu_text,
+    store_menu_text,
+    free_menu_text,
+    top_menu_text,
+    my_menu_text,
+)
 from services.subscription_service import ensure_subscription
 
 
+async def _go_to(update, context, text: str, keyboard, delete: bool = True):
+    """Универсальная функция перехода в раздел."""
+    query = update.callback_query
+    await query.answer()
+
+    if not await ensure_subscription(query, context):
+        return
+
+    if delete:
+        try:
+            await query.message.delete()
+        except Exception:
+            pass
+
+    await context.bot.send_message(
+        chat_id=query.message.chat.id,
+        text=text,
+        parse_mode=ParseMode.HTML,
+        reply_markup=keyboard,
+    )
+
+
+# ═══════════════════════════════════════════════════════════════
+# 🏠 Главное меню
+# ═══════════════════════════════════════════════════════════════
+
 async def main_menu_callback(update, context):
-
-    query = update.callback_query
-
-    await query.answer()
-
-    if not await ensure_subscription(query, context):
-        return
-
-    try:
-        await query.message.delete()
-    except:
-        pass
-
-    await context.bot.send_message(
-        chat_id=query.message.chat.id,
-        text="🏠 Главное меню",
-        reply_markup=main_menu()
-    )
+    await _go_to(update, context, main_menu_text(), main_menu())
 
 
-async def deals_menu_callback(update, context):
+# ═══════════════════════════════════════════════════════════════
+# 🎮 Магазины
+# ═══════════════════════════════════════════════════════════════
 
-    query = update.callback_query
+async def store_menu_callback(update, context):
+    await _go_to(update, context, store_menu_text(), store_menu_keyboard())
 
-    await query.answer()
 
-    if not await ensure_subscription(query, context):
-        return
-
-    try:
-        await query.message.delete()
-    except:
-        pass
-
-    await context.bot.send_message(
-        chat_id=query.message.chat.id,
-        text="🔥 Раздел скидок",
-        reply_markup=deals_menu_keyboard()
-    )
-
+# ═══════════════════════════════════════════════════════════════
+# 🎁 Халява
+# ═══════════════════════════════════════════════════════════════
 
 async def free_menu_callback(update, context):
+    await _go_to(update, context, free_menu_text(), free_menu_keyboard())
 
-    query = update.callback_query
 
-    await query.answer()
+# ═══════════════════════════════════════════════════════════════
+# 🔥 Топ
+# ═══════════════════════════════════════════════════════════════
 
-    if not await ensure_subscription(query, context):
-        return
+async def top_menu_callback(update, context):
+    await _go_to(update, context, top_menu_text(), top_menu_keyboard())
 
-    try:
-        await query.message.delete()
-    except:
-        pass
 
-    await context.bot.send_message(
-        chat_id=query.message.chat.id,
-        text="🎁 Раздел халявы",
-        reply_markup=free_menu_keyboard()
-    )
+# ═══════════════════════════════════════════════════════════════
+# ❤️ Моё
+# ═══════════════════════════════════════════════════════════════
+
+async def my_menu_callback(update, context):
+    await _go_to(update, context, my_menu_text(), my_menu_keyboard())

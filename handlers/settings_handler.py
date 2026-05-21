@@ -1,18 +1,17 @@
 """
-Обработчик настроек пользователя:
+🎮 GameHub — Настройки пользователя.
+
 - Включение/отключение уведомлений
 - Фильтр минимального процента скидки
-- Подписка на определённые магазины
 """
-
-import html
 
 from telegram import Update
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 
 from database import get_user_settings, update_user_settings
-from keyboards import settings_keyboard, discount_filter_keyboard, main_menu
+from keyboards import settings_keyboard, discount_filter_keyboard_v1, main_menu
+from utils import settings_menu_text
 from services.subscription_service import ensure_subscription
 
 
@@ -29,24 +28,16 @@ async def settings_menu_callback(update: Update, context: ContextTypes.DEFAULT_T
     if not settings:
         settings = {"notifications_enabled": True, "min_discount_percent": 0}
 
-    text = (
-        "⚙️ <b>Настройки</b>\n\n"
-        "Здесь можно настроить уведомления под себя.\n\n"
-        f"🔔 Уведомления: {'✅ Включены' if settings['notifications_enabled'] else '❌ Отключены'}\n"
-        f"📉 Минимальная скидка: {settings['min_discount_percent']}%\n\n"
-        "<i>Уведомления приходят только если скидка больше или равна указанному проценту.</i>"
-    )
-
     try:
         await query.message.delete()
-    except:
+    except Exception:
         pass
 
     await context.bot.send_message(
         chat_id=query.message.chat.id,
-        text=text,
+        text=settings_menu_text(settings),
         parse_mode=ParseMode.HTML,
-        reply_markup=settings_keyboard(settings)
+        reply_markup=settings_keyboard(settings),
     )
 
 
@@ -69,14 +60,9 @@ async def settings_toggle_notif_callback(update: Update, context: ContextTypes.D
     settings["notifications_enabled"] = new_status
 
     await query.edit_message_text(
-        text=(
-            "⚙️ <b>Настройки</b>\n\n"
-            f"🔔 Уведомления: {'✅ Включены' if new_status else '❌ Отключены'}\n"
-            f"📉 Минимальная скидка: {settings['min_discount_percent']}%\n\n"
-            f"{'✅ Уведомления включены' if new_status else '❌ Уведомления отключены'}"
-        ),
+        text=settings_menu_text(settings),
         parse_mode=ParseMode.HTML,
-        reply_markup=settings_keyboard(settings)
+        reply_markup=settings_keyboard(settings),
     )
 
 
@@ -93,16 +79,19 @@ async def settings_min_discount_callback(update: Update, context: ContextTypes.D
     if not settings:
         settings = {"notifications_enabled": True, "min_discount_percent": 0}
 
+    current = settings["min_discount_percent"]
+
     await query.edit_message_text(
         text=(
-            "📉 <b>Минимальный процент скидки</b>\n\n"
-            "Выбери минимальный размер скидки, "
-            "при котором ты хочешь получать уведомления.\n\n"
-            f"Текущее значение: <b>{settings['min_discount_percent']}%</b>\n\n"
-            "<i>Уведомления будут приходить только если скидка больше этого значения.</i>"
+            "📉 <b>Минимальная скидка</b>\n\n"
+            "Выбери минимальный процент скидки,\n"
+            "при котором присылать уведомление.\n\n"
+            f"Сейчас: <b>{current}%</b>\n\n"
+            "<i>Уведомления приходят, только если\n"
+            "скидка >= этого значения.</i>"
         ),
         parse_mode=ParseMode.HTML,
-        reply_markup=discount_filter_keyboard(settings["min_discount_percent"])
+        reply_markup=discount_filter_keyboard_v1(current),
     )
 
 
@@ -114,7 +103,7 @@ async def set_min_discount_callback(update: Update, context: ContextTypes.DEFAUL
         return
 
     user_id = query.from_user.id
-    data = query.data  # set_min_discount_10, set_min_discount_50, etc.
+    data = query.data  # set_min_discount_10, etc.
 
     try:
         discount = int(data.split("_")[-1])
@@ -128,12 +117,7 @@ async def set_min_discount_callback(update: Update, context: ContextTypes.DEFAUL
         settings = {"notifications_enabled": True, "min_discount_percent": discount}
 
     await query.edit_message_text(
-        text=(
-            "⚙️ <b>Настройки</b>\n\n"
-            f"🔔 Уведомления: {'✅ Включены' if settings['notifications_enabled'] else '❌ Отключены'}\n"
-            f"📉 Минимальная скидка: <b>{discount}%</b>\n\n"
-            f"✅ Сохранено!"
-        ),
+        text=settings_menu_text(settings),
         parse_mode=ParseMode.HTML,
-        reply_markup=settings_keyboard(settings)
+        reply_markup=settings_keyboard(settings),
     )

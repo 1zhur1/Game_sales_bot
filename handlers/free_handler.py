@@ -1,13 +1,12 @@
 from telegram.constants import ParseMode
 
-from keyboards import nav_keyboard
-
+from keyboards import filtered_nav_keyboard
 from utils import format_game
-
 from services.subscription_service import ensure_subscription
-
 from services.epic_service import get_epic_free_games
 from services.steam_service import get_steam_free_games
+from services.filter_service import apply_filters
+from database import get_user_filters
 
 
 async def epic_free_callback(update, context):
@@ -24,16 +23,36 @@ async def epic_free_callback(update, context):
     games = await get_epic_free_games()
 
     if not games:
-
         await query.message.reply_text(
-            "❌ Нет бесплатных игр Epic"
+            "😕 Сейчас бесплатных игр в Epic нет.\n"
+            "Загляни на следующей неделе!"
         )
-
         return
 
-    index = max(0, min(index, len(games) - 1))
+    # Применяем фильтры пользователя
+    user_id = query.from_user.id
+    filters = await get_user_filters(user_id)
+    filtered = apply_filters(
+        games,
+        selected_genres=filters.get("selected_genres"),
+        min_discount=filters.get("min_discount", 0),
+        max_price=filters.get("max_price", 0),
+        platform="epic games",
+        filter_type="free",
+        sort_type=filters.get("sort_type", "discount"),
+        rating_filter=filters.get("rating_filter", 0),
+    )
 
-    game = games[index]
+    if not filtered:
+        await query.message.reply_text(
+            "😕 Ничего не нашлось под твои фильтры.\n"
+            "Попробуй изменить настройки в разделе 🎯 Фильтры.",
+        )
+        return
+
+    index = max(0, min(index, len(filtered) - 1))
+
+    game = filtered[index]
 
     try:
         await query.message.delete()
@@ -46,13 +65,13 @@ async def epic_free_callback(update, context):
         caption=format_game(
             game,
             index,
-            len(games)
+            len(filtered)
         ),
         parse_mode=ParseMode.HTML,
-        reply_markup=nav_keyboard(
+        reply_markup=filtered_nav_keyboard(
             "epic_free",
             index,
-            len(games)
+            len(filtered)
         )
     )
 
@@ -71,16 +90,36 @@ async def steam_free_callback(update, context):
     games = await get_steam_free_games()
 
     if not games:
-
         await query.message.reply_text(
-            "❌ Нет Steam халявы"
+            "😕 Сейчас бесплатных игр в Steam нет.\n"
+            "Загляни позже!"
         )
-
         return
 
-    index = max(0, min(index, len(games) - 1))
+    # Применяем фильтры пользователя
+    user_id = query.from_user.id
+    filters = await get_user_filters(user_id)
+    filtered = apply_filters(
+        games,
+        selected_genres=filters.get("selected_genres"),
+        min_discount=filters.get("min_discount", 0),
+        max_price=filters.get("max_price", 0),
+        platform="steam",
+        filter_type="free",
+        sort_type=filters.get("sort_type", "discount"),
+        rating_filter=filters.get("rating_filter", 0),
+    )
 
-    game = games[index]
+    if not filtered:
+        await query.message.reply_text(
+            "😕 Ничего не нашлось под твои фильтры.\n"
+            "Попробуй изменить настройки в разделе 🎯 Фильтры.",
+        )
+        return
+
+    index = max(0, min(index, len(filtered) - 1))
+
+    game = filtered[index]
 
     try:
         await query.message.delete()
@@ -93,12 +132,12 @@ async def steam_free_callback(update, context):
         caption=format_game(
             game,
             index,
-            len(games)
+            len(filtered)
         ),
         parse_mode=ParseMode.HTML,
-        reply_markup=nav_keyboard(
+        reply_markup=filtered_nav_keyboard(
             "steam_free",
             index,
-            len(games)
+            len(filtered)
         )
     )

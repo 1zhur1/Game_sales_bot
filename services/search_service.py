@@ -4,12 +4,14 @@
 - нормализация названий (русский/английский)
 - транслитерация
 - поиск по неполному названию
+- поиск напрямую через Steam/Epic API (если кэш пуст)
 """
 
 import re
-from rapidfuzz import fuzz, process
+import aiohttp
+from rapidfuzz import fuzz
 
-from database import get_all_deals_for_search
+from database import get_all_deals_for_search, get_deals_from_cache, get_free_from_cache
 
 
 # ─── Нормализация ────────────────────────────────
@@ -38,7 +40,6 @@ SYNONYMS = {
     'kcd': 'kingdom come deliverance',
     'hzd': 'horizon zero dawn',
     'tlou': 'the last of us',
-    'soma': 'soma',
     'metro exodus': 'metro exodus',
 }
 
@@ -57,22 +58,17 @@ def transliterate(text: str) -> str:
     return ''.join(result)
 
 
-def normalize_title(title: str) -> str:
+def normalize_title(title: str) -> tuple:
     """
     Нормализация названия игры:
     - нижний регистр
     - удаление лишних пробелов
     - удаление спецсимволов
-    - транслитерация кириллицы
-    - замена цифр на римские/арабские
     """
     title = title.lower().strip()
     title = re.sub(r'[^\w\s]', ' ', title)
     title = re.sub(r'\s+', ' ', title).strip()
-
-    # Пробуем транслитерировать
     translit = transliterate(title)
-
     return title, translit
 
 
@@ -110,21 +106,41 @@ def expand_query(query: str) -> list[str]:
 async def search_games(query: str, threshold: int = 60) -> list[dict]:
     """
     Поиск игр по названию с fuzzy search.
-    Возвращает список найденных игр, отсортированный по релевантности.
+    Сначала ищет в кэше БД, если пусто — через Steam API.
     """
+    # 1. Сначала ищем в кэше БД
     games = await get_all_deals_for_search()
-    if not games:
-        return []
+    if games:
+        results = _fuzzy_search_in_list(query, games, threshold)
+        if results:
+            return results
 
-    # Нормализуем запрос
-    norm_query, translit_query = normalize_title(query)
+    # 2. Если кэш пуст или ничего не нашли — ищем через API
+    try:
+        api_results = await _search_steam_api(query)
+        if api_results:
+            return api_results
+    except Exception:
+        pass
+
+    # 3. Пробуем ещё поиск через CheapShark (Steam deals)
+    try:
+        cs_results = await _search_cheapshark(query)
+        if cs_results:
+            return cs_results
+    except Exception:
+        pass
+
+    return []
+
+
+def _fuzzy_search_in_list(query: str, games: list[dict], threshold: int = 60) -> list[dict]:
+    """Fuzzy search по списку игр."""
     expansions = expand_query(query)
-
     results = {}
     seen_titles = set()
 
     for expansion in expansions:
-        # Точное совпадение
         for game in games:
             game_norm, game_translit = normalize_title(game["title"])
             key = f"{game['title']}|{game['store']}"
@@ -132,7 +148,6 @@ async def search_games(query: str, threshold: int = 60) -> list[dict]:
             if key in seen_titles:
                 continue
 
-            # Проверяем все варианты
             candidates = [
                 game_norm,
                 game_translit,
@@ -140,31 +155,109 @@ async def search_games(query: str, threshold: int = 60) -> list[dict]:
             ]
 
             for candidate in candidates:
-                # Точное совпадение
                 if expansion == candidate or expansion in candidate:
                     score = 100
                 else:
-                    # Fuzzy match
                     score = fuzz.ratio(expansion, candidate)
-                    # Частичное совпадение (подстрока)
                     partial_score = fuzz.partial_ratio(expansion, candidate)
                     score = max(score, partial_score)
 
                 if score >= threshold:
-                    results[key] = {
-                        **game,
-                        "match_score": score,
-                    }
+                    results[key] = {**game, "match_score": score}
                     seen_titles.add(key)
                     break
 
-    # Сортируем по релевантности
     sorted_results = sorted(
         results.values(),
         key=lambda x: (-x["match_score"], x["title"])
     )
-
     return sorted_results[:20]
+
+
+async def _search_steam_api(query: str) -> list[dict]:
+    """Поиск через Steam Store API."""
+    url = "https://store.steampowered.com/api/storesearch"
+    params = {
+        "term": query,
+        "l": "english",
+        "cc": "RU",
+    }
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, params=params, timeout=15) as resp:
+            data = await resp.json()
+
+    items = data.get("items", [])
+    results = []
+
+    for item in items[:15]:
+        name = item.get("name", "Unknown")
+        app_id = item.get("id")
+
+        if not app_id:
+            continue
+
+        image = f"https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/{app_id}/header.jpg"
+        url = f"https://store.steampowered.com/app/{app_id}"
+
+        results.append({
+            "title": name,
+            "store": "Steam",
+            "price": 0,
+            "original_price": 0,
+            "discount_percent": 0,
+            "is_free": False,
+            "url": url,
+            "image": image,
+            "match_score": 85,
+        })
+
+    return results
+
+
+async def _search_cheapshark(query: str) -> list[dict]:
+    """Поиск через CheapShark API (скидки Steam)."""
+    url = "https://www.cheapshark.com/api/1.0/deals"
+    params = {
+        "title": query,
+        "storeID": 1,
+        "pageSize": 20,
+        "exact": 0,
+    }
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, params=params, timeout=15) as resp:
+            data = await resp.json()
+
+    if not data:
+        return []
+
+    results = []
+    for item in data:
+        title = item.get("title", "Unknown")
+        app_id = item.get("steamAppID")
+
+        if not app_id:
+            continue
+
+        discount = int(float(item.get("savings", 0)))
+        sale_price = float(item.get("salePrice", 0))
+        normal_price = float(item.get("normalPrice", 0))
+        image = f"https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/{app_id}/header.jpg"
+
+        results.append({
+            "title": title,
+            "store": "Steam",
+            "price": sale_price,
+            "original_price": normal_price,
+            "discount_percent": discount,
+            "is_free": sale_price == 0,
+            "url": f"https://store.steampowered.com/app/{app_id}",
+            "image": image,
+            "match_score": 80,
+        })
+
+    return results[:15]
 
 
 async def search_by_exact_prefix(query: str) -> list[dict]:
