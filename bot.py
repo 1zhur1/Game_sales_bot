@@ -1,6 +1,7 @@
 import sys
 import os
 import time
+import asyncio
 from threading import Thread
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
@@ -103,6 +104,10 @@ def main():
         while True:
             time.sleep(60)
 
+    # Create event loop for Python 3.14 compatibility
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
     log("Building Application...")
 
     try:
@@ -121,7 +126,7 @@ def main():
 
         logger.info("Bot is running")
         log("Starting polling...")
-        app.run_polling()
+        app.run_polling(loop=loop)
 
     except Exception as e:
         log(f"BOT ERROR: {e}")
