@@ -232,42 +232,31 @@ async def post_init(app):
 # ═══════════════════════════════════════════════════════════════
 
 def main():
-    while True:
-        try:
-            log("Starting bot...")
+    log("Starting bot...")
 
-            if not BOT_TOKEN:
-                log("ERROR: BOT_TOKEN missing")
-                while True:
-                    time.sleep(60)
+    if not BOT_TOKEN:
+        log("ERROR: BOT_TOKEN missing")
+        time.sleep(60)
+        return
 
-            app = (
-                Application.builder()
-                .token(BOT_TOKEN)
-                .post_init(post_init)
-                .build()
-            )
-            log("Application created")
+    app = (
+        Application.builder()
+        .token(BOT_TOKEN)
+        .post_init(post_init)
+        .build()
+    )
+    log("Application created")
 
-            register_handlers(app)
-            log("Handlers registered")
-            logger.info("Bot started successfully")
+    register_handlers(app)
+    log("Handlers registered")
+    logger.info("Bot started successfully")
 
-            # run_polling блокируется пока бот работает
-            app.run_polling(
-                drop_pending_updates=True,
-                allowed_updates=["message", "callback_query"],
-            )
-
-        except KeyboardInterrupt:
-            log("Bot stopped by user")
-            break
-        except Exception as e:
-            log(f"Bot crashed: {e}")
-            import traceback
-            log(traceback.format_exc())
-            log("Restarting in 5 seconds...")
-            time.sleep(5)
+    # run_polling блокируется пока бот работает
+    # Watchdog перезапустит бота если он упадёт
+    app.run_polling(
+        drop_pending_updates=True,
+        allowed_updates=["message", "callback_query"],
+    )
 
 
 if __name__ == "__main__":
