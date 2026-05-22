@@ -13,6 +13,13 @@
 BOT_DIR="$(cd "$(dirname "$0")" && pwd)"  # папка со скриптом
 BOT_SCRIPT="bot.py"
 DB_SERVER_SCRIPT="database_server.py"
+
+# Используем python из виртуального окружения, если есть
+if [ -f "${BOT_DIR}/venv/bin/python" ]; then
+    PYTHON="${BOT_DIR}/venv/bin/python"
+else
+    PYTHON="python3"
+fi
 HEALTH_PORT=8000
 DB_SERVER_PORT=5001
 HEALTH_URL="http://127.0.0.1:${HEALTH_PORT}"
@@ -151,7 +158,7 @@ check_health() {
 
     else
         # fallback на python
-        python3 -c "
+        $PYTHON -c "
 import urllib.request
 try:
     urllib.request.urlopen('$HEALTH_URL', timeout=5)
@@ -199,7 +206,7 @@ start_db_server() {
 
     log "🗄️  Starting database server..."
     cd "$BOT_DIR" || return 1
-    nohup python -u "$DB_SERVER_SCRIPT" >> "${BOT_DIR}/db_server.log" 2>&1 &
+    nohup $PYTHON -u "$DB_SERVER_SCRIPT" >> "${BOT_DIR}/db_server.log" 2>&1 &
     local new_pid=$!
 
     # Ждём пока сервер запустится (до 10 секунд)
@@ -287,7 +294,7 @@ start_bot() {
     }
 
     # Запускаем бота в фоне с nohup
-    nohup python -u "$BOT_SCRIPT" >> "${BOT_DIR}/bot_console.log" 2>&1 &
+    nohup $PYTHON -u "$BOT_SCRIPT" >> "${BOT_DIR}/bot_console.log" 2>&1 &
     local new_pid=$!
 
     # Ждём несколько секунд и проверяем
