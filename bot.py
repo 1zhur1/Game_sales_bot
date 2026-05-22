@@ -26,7 +26,7 @@ def run_health_server():
         server = HTTPServer(("0.0.0.0", port), HealthHandler)
         server.serve_forever()
     except OSError:
-        pass  # port already in use, ignore
+        pass
 
 
 Thread(target=run_health_server, daemon=True).start()
@@ -65,16 +65,10 @@ try:
         filters,
     )
 
-    log("telegram.ext imported")
-
     from config import BOT_TOKEN
-
-    log(f"BOT_TOKEN loaded: {'YES' if BOT_TOKEN else 'NO'}")
-
     from database import init_db
 
     init_db()
-    log("Database initialized")
 
     from handlers.start_handler import start
     from handlers.menu_handler import (
@@ -112,7 +106,9 @@ try:
         filters_rating_callback, filters_set_rating_callback,
         filters_reset_callback,
     )
-    from services.notification_service import start_background_tasks
+    from services.notification_service import (
+        check_new_deals_loop, monitor_subscriptions_loop,
+    )
 
     log("All modules imported successfully")
 
@@ -123,36 +119,24 @@ except Exception as e:
     while True:
         time.sleep(60)
 
+
 # ═══════════════════════════════════════════════════════════════
 # REGISTER HANDLERS
 # ═══════════════════════════════════════════════════════════════
 
 def register_handlers(app):
-    """Регистрирует все обработчики в приложении."""
-
-    # Команды
     app.add_handler(CommandHandler("start", start))
-
-    # 🏠 Главное меню
     app.add_handler(CallbackQueryHandler(main_menu_callback, pattern="^main_menu$"))
-
-    # 🎮 Магазины
     app.add_handler(CallbackQueryHandler(store_menu_callback, pattern="^store_menu$"))
     app.add_handler(CallbackQueryHandler(steam_deals_callback, pattern="^steam_deals_"))
     app.add_handler(CallbackQueryHandler(epic_deals_callback, pattern="^epic_deals_"))
-
-    # 🎁 Халява
     app.add_handler(CallbackQueryHandler(free_menu_callback, pattern="^free_menu$"))
     app.add_handler(CallbackQueryHandler(epic_free_callback, pattern="^epic_free_"))
     app.add_handler(CallbackQueryHandler(steam_free_callback, pattern="^steam_free_"))
-
-    # 🔥 Топ
     app.add_handler(CallbackQueryHandler(top_menu_callback, pattern="^top_menu$"))
     app.add_handler(CallbackQueryHandler(top_menu_callback, pattern="^recommendations$"))
     app.add_handler(CallbackQueryHandler(top_menu_callback, pattern="^popular$"))
     app.add_handler(CallbackQueryHandler(top_menu_callback, pattern="^new_releases$"))
-
-    # ❤️ Моё / Подписки
     app.add_handler(CallbackQueryHandler(my_menu_callback, pattern="^my_menu$"))
     app.add_handler(CallbackQueryHandler(subscribe_menu_callback, pattern="^subscribe_menu$"))
     app.add_handler(CallbackQueryHandler(subscribe_search_callback, pattern="^subscribe_search$"))
@@ -163,8 +147,6 @@ def register_handlers(app):
     app.add_handler(CallbackQueryHandler(favorite_callback, pattern="^fav_"))
     app.add_handler(CallbackQueryHandler(my_favorites_callback, pattern="^my_favorites_"))
     app.add_handler(CallbackQueryHandler(game_info_callback, pattern="^game_info_"))
-
-    # ⚙️ Настройки
     app.add_handler(CallbackQueryHandler(settings_menu_callback, pattern="^settings_menu$"))
     app.add_handler(CallbackQueryHandler(settings_toggle_notif_callback, pattern="^settings_toggle_notif$"))
     app.add_handler(CallbackQueryHandler(notif_filters_menu_callback, pattern="^settings_notif_filters$"))
@@ -180,8 +162,6 @@ def register_handlers(app):
     app.add_handler(CallbackQueryHandler(notif_filters_rating_callback, pattern="^nf_rating$"))
     app.add_handler(CallbackQueryHandler(notif_filters_set_rating_callback, pattern="^nf_set_rating_"))
     app.add_handler(CallbackQueryHandler(notif_filters_reset_callback, pattern="^nf_reset$"))
-
-    # 🎯 Фильтры
     app.add_handler(CallbackQueryHandler(filters_menu_callback, pattern="^filters_menu$"))
     app.add_handler(CallbackQueryHandler(filters_genres_callback, pattern="^filters_genres$"))
     app.add_handler(CallbackQueryHandler(filters_genre_toggle_callback, pattern="^fgenre_toggle_"))
@@ -199,16 +179,12 @@ def register_handlers(app):
     app.add_handler(CallbackQueryHandler(filters_rating_callback, pattern="^filters_rating$"))
     app.add_handler(CallbackQueryHandler(filters_set_rating_callback, pattern="^fset_rating_"))
     app.add_handler(CallbackQueryHandler(filters_reset_callback, pattern="^filters_reset$"))
-
-    # Ignore
     app.add_handler(
         CallbackQueryHandler(
             lambda update, context: update.callback_query.answer(),
             pattern="^ignore$",
         )
     )
-
-    # Текстовый ввод (поиск для подписки)
     app.add_handler(
         MessageHandler(
             filters.TEXT & ~filters.COMMAND,
@@ -218,16 +194,37 @@ def register_handlers(app):
 
 
 # ═══════════════════════════════════════════════════════════════
-# POST INIT (фоновые задачи)
+# POST INIT - запуск фоновых задач через JobQueue
 # ═══════════════════════════════════════════════════════════════
 
 async def post_init(app):
-    """Запускается после инициализации бота."""
+    """
+    Запускает фоновые задачи через job_queue.
+    JobQueue гарантированно работает в правильном event loop'е.
+    """
+    from config import NOTIFICATION_INTERVAL, MONITOR_INTERVAL
+
     try:
-        await start_background_tasks(app)
-        log("Background tasks started via post_init")
+        # JobQueue run_repeating запускает корутину в правильном loop'е
+        # Первый запуск через 10 секунд после старта, потом каждый час
+        app.job_queue.run_repeating(
+            check_new_deals_loop,
+            interval=NOTIFICATION_INTERVAL,
+            first=10.0,  # первый раз через 10 секунд
+            name="check_new_deals",
+        )
+
+        # Мониторинг подписок каждые 30 минут, первый раз через 60 секунд
+        app.job_queue.run_repeating(
+            monitor_subscriptions_loop,
+            interval=MONITOR_INTERVAL,
+            first=60.0,  # первый раз через 60 секунд
+            name="monitor_subscriptions",
+        )
+
+        log("Background jobs scheduled via JobQueue")
     except Exception as e:
-        log(f"Failed to start background tasks: {e}")
+        log(f"Failed to schedule background jobs: {e}")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -235,11 +232,6 @@ async def post_init(app):
 # ═══════════════════════════════════════════════════════════════
 
 def main():
-    """
-    Запускает бота с авто-перезапуском при падении.
-    Использует правильный подход для python-telegram-bot v20.x:
-    post_init для фоновых задач, run_polling для управления циклом.
-    """
     while True:
         try:
             log("Starting bot...")
@@ -261,7 +253,7 @@ def main():
             log("Handlers registered")
             logger.info("Bot started successfully")
 
-            # run_polling() сам управляет event loop'ом
+            # run_polling блокируется пока бот работает
             app.run_polling(
                 drop_pending_updates=True,
                 allowed_updates=["message", "callback_query"],
@@ -274,14 +266,6 @@ def main():
             log(f"Bot crashed: {e}")
             import traceback
             log(traceback.format_exc())
-
-            try:
-                # Пытаемся корректно остановить
-                asyncio.run(app.stop())
-                asyncio.run(app.shutdown())
-            except Exception:
-                pass
-
             log("Restarting in 5 seconds...")
             time.sleep(5)
 

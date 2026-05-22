@@ -45,46 +45,42 @@ USER_PAUSE = 30
 
 
 # ═══════════════════════════════════════════════════════
-# Фоновые задачи
+# Фоновые задачи (вызываются JobQueue)
 # ═══════════════════════════════════════════════════════
 
 async def start_background_tasks(app: Application) -> None:
-    """Запускает все фоновые задачи."""
-    loop = asyncio.get_event_loop()
-
-    # Задача 1: Проверка новых скидок/халявы (каждый час)
-    loop.create_task(check_new_deals_loop(app))
-
-    # Задача 2: Мониторинг подписок (каждые 30 минут)
-    loop.create_task(monitor_subscriptions_loop(app))
-
-    log("Background tasks started")
+    """Запускает все фоновые задачи (больше не используется, всё через JobQueue)."""
+    log("start_background_tasks called - use JobQueue instead")
 
 
 async def check_new_deals_loop(app: Application) -> None:
-    """Периодическая проверка новых скидок и бесплатных игр."""
-    while True:
-        try:
-            await _check_new_deals_cycle(app)
-        except Exception as e:
-            log(f"NEW DEALS CHECK ERROR: {e}")
-            import traceback
-            log(traceback.format_exc())
-
-        await asyncio.sleep(NOTIFICATION_INTERVAL)
+    """
+    Периодическая проверка новых скидок.
+    Вызывается JobQueue по расписанию.
+    """
+    log("JOB: Starting new deals check...")
+    try:
+        await _check_new_deals_cycle(app)
+    except Exception as e:
+        log(f"JOB: New deals check error: {e}")
+        import traceback
+        log(traceback.format_exc())
+    log("JOB: New deals check completed")
 
 
 async def monitor_subscriptions_loop(app: Application) -> None:
-    """Периодический мониторинг подписок пользователей."""
-    while True:
-        try:
-            await _monitor_subscriptions_cycle(app)
-        except Exception as e:
-            log(f"SUBSCRIPTION MONITOR ERROR: {e}")
-            import traceback
-            log(traceback.format_exc())
-
-        await asyncio.sleep(MONITOR_INTERVAL)
+    """
+    Периодический мониторинг подписок.
+    Вызывается JobQueue по расписанию.
+    """
+    log("JOB: Starting subscription monitor...")
+    try:
+        await _monitor_subscriptions_cycle(app)
+    except Exception as e:
+        log(f"JOB: Subscription monitor error: {e}")
+        import traceback
+        log(traceback.format_exc())
+    log("JOB: Subscription monitor completed")
 
 
 # ═══════════════════════════════════════════════════════
