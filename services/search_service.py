@@ -5,6 +5,7 @@
 - транслитерация
 - поиск по неполному названию
 - поиск напрямую через Steam/Epic API (если кэш пуст)
+- поиск с учётом похожих названий
 """
 
 import re
@@ -33,14 +34,51 @@ TRANSLIT_TABLE = {
 # Известные синонимы/сокращения
 SYNONYMS = {
     'gta': 'grand theft auto',
+    'gtav': 'grand theft auto v',
+    'gta5': 'grand theft auto v',
+    'gta 5': 'grand theft auto v',
     'rdr': 'red dead redemption',
     'rdr2': 'red dead redemption 2',
+    'rdr 2': 'red dead redemption 2',
     'witcher': 'ведьмак',
     'cyberpunk': 'cyberpunk 2077',
+    'cp2077': 'cyberpunk 2077',
     'kcd': 'kingdom come deliverance',
     'hzd': 'horizon zero dawn',
     'tlou': 'the last of us',
-    'metro exodus': 'metro exodus',
+    'metro': 'metro exodus',
+    'battlefield': 'battlefield',
+    'bf': 'battlefield',
+    'bf1': 'battlefield 1',
+    'bf5': 'battlefield v',
+    'bf2042': 'battlefield 2042',
+    'ac': 'assassin\'s creed',
+    'dark souls': 'dark souls',
+    'ds': 'dark souls',
+    'ds3': 'dark souls iii',
+    'ds2': 'dark souls ii',
+    'er': 'elden ring',
+    'lol': 'league of legends',
+    'cs': 'counter strike',
+    'csgo': 'counter strike 2',
+    'cs2': 'counter strike 2',
+    'dota': 'dota 2',
+    'dota2': 'dota 2',
+    'pubg': 'playerunknown\'s battlegrounds',
+    'minecraft': 'minecraft',
+    'mc': 'minecraft',
+    'fifa': 'fifa',
+    'nba': 'nba 2k',
+    'cod': 'call of duty',
+    'mw': 'modern warfare',
+    'bdo': 'black desert online',
+    'skyrim': 'the elder scrolls v skyrim',
+    'tes': 'the elder scrolls',
+    'hl': 'half life',
+    'hl2': 'half life 2',
+    'portal': 'portal',
+    'l4d': 'left 4 dead',
+    'l4d2': 'left 4 dead 2',
 }
 
 # Популярные числовые замены
@@ -64,6 +102,7 @@ def normalize_title(title: str) -> tuple:
     - нижний регистр
     - удаление лишних пробелов
     - удаление спецсимволов
+    - транслитерация
     """
     title = title.lower().strip()
     title = re.sub(r'[^\w\s]', ' ', title)
@@ -82,15 +121,16 @@ def expand_query(query: str) -> list[str]:
     if translit != query:
         expansions.append(translit)
 
-    # Проверяем синонимы
-    if query in SYNONYMS:
-        expansions.append(SYNONYMS[query])
-
-    # Проверяем, не является ли запрос синонимом для чего-то
+    # Сначала проверим, содержит ли запрос ключевое слово из синонимов
+    query_lower = query.lower()
     for key, value in SYNONYMS.items():
-        if query == value:
+        if query_lower == key:
+            expansions.append(value)
+        elif query_lower == value:
             expansions.append(key)
-            break
+        # Частичное совпадение: если ключ содержится в запросе
+        elif len(key) > 2 and key in query_lower:
+            expansions.append(value)
 
     # Заменяем римские/арабские цифры
     words = query.split()
@@ -106,7 +146,7 @@ def expand_query(query: str) -> list[str]:
 async def search_games(query: str, threshold: int = 60) -> list[dict]:
     """
     Поиск игр по названию с fuzzy search.
-    Сначала ищет в кэше БД, если пусто — через Steam API.
+    Сначала ищет в кэше БД, если пусто — через Steam API и Epic API.
     """
     # 1. Сначала ищем в кэше БД
     games = await get_all_deals_for_search()
@@ -116,22 +156,40 @@ async def search_games(query: str, threshold: int = 60) -> list[dict]:
             return results
 
     # 2. Если кэш пуст или ничего не нашли — ищем через API
+    api_results = []
+    
+    # Steam API
     try:
-        api_results = await _search_steam_api(query)
-        if api_results:
-            return api_results
+        steam_results = await _search_steam_api(query)
+        api_results.extend(steam_results)
     except Exception:
         pass
 
-    # 3. Пробуем ещё поиск через CheapShark (Steam deals)
+    # CheapShark (ещё один Steam API)
+    if not api_results:
+        try:
+            cs_results = await _search_cheapshark(query)
+            api_results.extend(cs_results)
+        except Exception:
+            pass
+
+    # Epic Games API
     try:
-        cs_results = await _search_cheapshark(query)
-        if cs_results:
-            return cs_results
+        epic_results = await _search_epic_api(query)
+        api_results.extend(epic_results)
     except Exception:
         pass
 
-    return []
+    # Удаляем дубликаты по названию
+    seen = set()
+    unique_results = []
+    for r in api_results:
+        key = f"{r['title'].lower()}|{r['store']}"
+        if key not in seen:
+            seen.add(key)
+            unique_results.append(r)
+
+    return unique_results[:20]
 
 
 def _fuzzy_search_in_list(query: str, games: list[dict], threshold: int = 60) -> list[dict]:
@@ -160,7 +218,8 @@ def _fuzzy_search_in_list(query: str, games: list[dict], threshold: int = 60) ->
                 else:
                     score = fuzz.ratio(expansion, candidate)
                     partial_score = fuzz.partial_ratio(expansion, candidate)
-                    score = max(score, partial_score)
+                    token_score = fuzz.token_sort_ratio(expansion, candidate)
+                    score = max(score, partial_score, token_score)
 
                 if score >= threshold:
                     results[key] = {**game, "match_score": score}
@@ -171,7 +230,7 @@ def _fuzzy_search_in_list(query: str, games: list[dict], threshold: int = 60) ->
         results.values(),
         key=lambda x: (-x["match_score"], x["title"])
     )
-    return sorted_results[:20]
+    return sorted_results[:30]
 
 
 async def _search_steam_api(query: str) -> list[dict]:
@@ -256,6 +315,78 @@ async def _search_cheapshark(query: str) -> list[dict]:
             "image": image,
             "match_score": 80,
         })
+
+    return results[:15]
+
+
+async def _search_epic_api(query: str) -> list[dict]:
+    """Поиск через Epic Games Store API."""
+    url = "https://store-site-backend-static-ipv4.ak.epicgames.com/freeGamesPromotions"
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, timeout=15) as resp:
+            data = await resp.json()
+
+    elements = data.get("data", {}).get("Catalog", {}).get("searchStore", {}).get("elements", [])
+    results = []
+
+    query_lower = query.lower().strip()
+
+    for item in elements:
+        try:
+            title = item.get("title", "")
+            if not title:
+                continue
+
+            # Проверяем на совпадение с запросом
+            title_lower = title.lower()
+            if query_lower not in title_lower:
+                # Fuzzy match для Epic
+                title_norm, title_translit = normalize_title(title)
+                query_norm, query_translit = normalize_title(query)
+                ratio = max(
+                    fuzz.partial_ratio(query_lower, title_lower),
+                    fuzz.partial_ratio(query_norm, title_norm),
+                    fuzz.partial_ratio(query_translit, title_translit),
+                )
+                if ratio < 60:
+                    continue
+
+            slug = item.get("productSlug")
+            if not slug:
+                # Пробуем получить slug из url
+                url_mappings = item.get("urlMappings", [])
+                if url_mappings:
+                    slug = url_mappings[0].get("pageSlug", "")
+                if not slug:
+                    continue
+
+            # Получаем цену
+            price_info = item.get("price", {}).get("totalPrice", {})
+            discount_price = price_info.get("discountPrice", 0)
+            original_price = price_info.get("originalPrice", 0)
+            is_free = discount_price == 0
+
+            # Получаем изображение
+            image = None
+            for img in item.get("keyImages", []):
+                if img.get("type") in ("OfferImageWide", "DieselStoreFrontWide"):
+                    image = img.get("url")
+                    break
+
+            results.append({
+                "title": title,
+                "store": "Epic Games",
+                "price": discount_price / 100 if discount_price else 0,
+                "original_price": original_price / 100 if original_price else 0,
+                "discount_percent": 100 if is_free else 0,
+                "is_free": is_free,
+                "url": f"https://store.epicgames.com/p/{slug}",
+                "image": image or "",
+                "match_score": 80,
+            })
+        except Exception:
+            continue
 
     return results[:15]
 

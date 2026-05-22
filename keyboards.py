@@ -6,6 +6,7 @@
 """
 
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+from database import make_deal_id
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -192,6 +193,40 @@ def game_selection_keyboard(games: list[dict], prefix: str = "sub_choose"):
     return InlineKeyboardMarkup(buttons)
 
 
+def _make_game_callback(prefix: str, game_title: str, store: str) -> str:
+    """
+    Создаёт callback_data для действий с игрой, используя хэш deal_id.
+    Telegram callback_data <= 64 байт, поэтому используем сокращённый идентификатор.
+    """
+    deal_id = make_deal_id(store, game_title)
+    # Берём первые 55 символов от deal_id (оставляем место под префикс)
+    short_id = deal_id[:55]
+    return f"{prefix}{short_id}"
+
+
+def _parse_game_callback(data: str, prefix: str) -> tuple:
+    """
+    Разбирает callback_data обратно в game_title и store.
+    Возвращает (game_title, store) или None.
+    """
+    if not data.startswith(prefix):
+        return None
+    short_id = data[len(prefix):]
+    # Восстанавливаем: формат store:title
+    if ":" in short_id:
+        store_part, title_part = short_id.split(":", 1)
+        # Нормализуем название магазина
+        store_lower = store_part.lower().strip()
+        if store_lower == "steam":
+            store = "Steam"
+        elif "epic" in store_lower:
+            store = "Epic Games"
+        else:
+            store = store_part
+        return (title_part, store)
+    return None
+
+
 def subscription_action_keyboard(
     game_title: str,
     store: str,
@@ -205,20 +240,20 @@ def subscription_action_keyboard(
         buttons.append([
             InlineKeyboardButton(
                 "🔔 ✅ Подписан · Отписаться",
-                callback_data=f"unsub_{game_title[:30]}|{store}"
+                callback_data=_make_game_callback("unsub_", game_title, store),
             ),
         ])
     else:
         buttons.append([
             InlineKeyboardButton(
                 "🔔 Подписаться на скидки",
-                callback_data=f"sub_confirm_{game_title[:30]}|{store}"
+                callback_data=_make_game_callback("sub_confirm_", game_title, store),
             ),
         ])
 
     fav_label = "⭐ В избранное" if not is_favorite else "⭐ ✅ В избранном"
     buttons.append([
-        InlineKeyboardButton(fav_label, callback_data=f"fav_{game_title[:30]}|{store}"),
+        InlineKeyboardButton(fav_label, callback_data=_make_game_callback("fav_", game_title, store)),
     ])
 
     buttons.append([
@@ -243,7 +278,7 @@ def my_subscriptions_keyboard(subscriptions: list[dict], page: int = 0, items_pe
         buttons.append([
             InlineKeyboardButton(
                 f"❌ {title}  ·  {store}",
-                callback_data=f"unsub_{sub['game_title'][:30]}|{store}"
+                callback_data=_make_game_callback("unsub_", sub["game_title"], store),
             ),
         ])
 
@@ -287,7 +322,7 @@ def my_favorites_keyboard(favorites: list[dict], page: int = 0, items_per_page: 
         buttons.append([
             InlineKeyboardButton(
                 f"⭐ {title}  ·  {store}",
-                callback_data=f"game_info_{fav['game_title'][:30]}|{store}"
+                callback_data=_make_game_callback("game_info_", fav["game_title"], store),
             ),
         ])
 

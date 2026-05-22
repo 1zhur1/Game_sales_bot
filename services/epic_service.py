@@ -109,6 +109,14 @@ async def get_epic_free_games():
 
                 slug = item.get("productSlug")
 
+                if not slug:
+                    url_mappings = item.get("urlMappings", [])
+                    if url_mappings:
+                        slug = url_mappings[0].get("pageSlug", "")
+
+                if not slug:
+                    continue
+
                 game = GameDeal(
                     title=title,
                     original_price="—",
@@ -172,20 +180,25 @@ async def get_epic_deals():
                 if is_low_quality_game(title):
                     continue
 
-                price = (
-                    item["price"]["totalPrice"]
-                )
+                price_info = item.get("price", {}).get("totalPrice", {})
+                original_price_cents = price_info.get("originalPrice", 0)
+                discount_price_cents = price_info.get("discountPrice", 0)
 
-                original = (
-                    price["fmtPrice"]["originalPrice"]
-                )
-
-                discount = (
-                    price["discountPrice"]
-                )
-
-                if discount <= 0:
+                # Пропускаем бесплатные (они уже в get_epic_free_games)
+                if discount_price_cents <= 0:
                     continue
+
+                # Пропускаем если нет скидки
+                if discount_price_cents >= original_price_cents:
+                    continue
+
+                # Вычисляем процент скидки
+                if original_price_cents > 0:
+                    discount_percent = int(
+                        (1 - discount_price_cents / original_price_cents) * 100
+                    )
+                else:
+                    discount_percent = 0
 
                 image = None
 
@@ -197,11 +210,23 @@ async def get_epic_deals():
 
                 slug = item.get("productSlug")
 
-                game = GameDeal(
+                if not slug:
+                    url_mappings = item.get("urlMappings", [])
+                    if url_mappings:
+                        slug = url_mappings[0].get("pageSlug", "")
+
+                if not slug:
+                    continue
+
+                # Форматируем цены
+                original_price = f"{original_price_cents / 100:.2f}$"
+                discounted_price = f"{discount_price_cents / 100:.2f}$"
+
+                ame = GameDeal(
                     title=title,
-                    original_price=original,
-                    discounted_price="Со скидкой",
-                    discount_percent=50,
+                    original_price=original_price,
+                    discounted_price=discounted_price,
+                    discount_percent=discount_percent,
                     rating_percent=85,
                     rating_text="Высокий рейтинг",
                     description=generate_short_description(
@@ -209,7 +234,8 @@ async def get_epic_deals():
                     ),
                     url=f"https://store.epicgames.com/p/{slug}",
                     store="Epic Games",
-                    image=image
+                    image=image,
+                    is_free=False,
                 )
 
                 games.append(game)

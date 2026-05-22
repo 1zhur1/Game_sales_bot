@@ -18,12 +18,13 @@ from database import (
     add_subscription, remove_subscription,
     get_user_subscriptions, get_user_favorites,
     add_favorite, remove_favorite, is_favorite,
-    get_deal_by_title,
+    get_deal_by_title, make_deal_id,
 )
 from keyboards import (
     main_menu, subscribe_menu_keyboard,
     game_selection_keyboard, subscription_action_keyboard,
     my_subscriptions_keyboard, my_favorites_keyboard,
+    _parse_game_callback, _make_game_callback,
 )
 from utils import (
     fmt,
@@ -235,14 +236,20 @@ async def subscribe_confirm_callback(update: Update, context: ContextTypes.DEFAU
         return
 
     user_id = query.from_user.id
-    data = query.data  # sub_confirm_GameTitle|Store
+    data = query.data  # sub_confirm_steam:gametitle
 
-    try:
-        _, raw = data.split("sub_confirm_", 1)
-        game_title, store = raw.rsplit("|", 1)
-    except (ValueError, IndexError):
-        await query.message.reply_text("❌ Ошибка обработки.")
-        return
+    # Разбираем через _parse_game_callback
+    parsed = _parse_game_callback(data, "sub_confirm_")
+    if not parsed:
+        # Пробуем старый формат (на случай устаревших клавиатур)
+        try:
+            _, raw = data.split("sub_confirm_", 1)
+            game_title, store = raw.rsplit("|", 1)
+        except (ValueError, IndexError):
+            await query.message.reply_text("❌ Ошибка обработки.")
+            return
+    else:
+        game_title, store = parsed
 
     game = await get_deal_by_title(game_title, store)
 
@@ -282,14 +289,20 @@ async def unsubscribe_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     user_id = query.from_user.id
-    data = query.data  # unsub_GameTitle|Store
+    data = query.data  # unsub_steam:gametitle
 
-    try:
-        _, raw = data.split("unsub_", 1)
-        game_title, store = raw.rsplit("|", 1)
-    except (ValueError, IndexError):
-        await query.message.reply_text("❌ Ошибка обработки.")
-        return
+    # Разбираем через _parse_game_callback
+    parsed = _parse_game_callback(data, "unsub_")
+    if not parsed:
+        # Пробуем старый формат
+        try:
+            _, raw = data.split("unsub_", 1)
+            game_title, store = raw.rsplit("|", 1)
+        except (ValueError, IndexError):
+            await query.message.reply_text("❌ Ошибка обработки.")
+            return
+    else:
+        game_title, store = parsed
 
     success = await remove_subscription(user_id, game_title, store)
 
@@ -385,14 +398,20 @@ async def favorite_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     user_id = query.from_user.id
-    data = query.data  # fav_GameTitle|Store
+    data = query.data  # fav_steam:gametitle
 
-    try:
-        _, raw = data.split("fav_", 1)
-        game_title, store = raw.rsplit("|", 1)
-    except (ValueError, IndexError):
-        await query.message.reply_text("❌ Ошибка обработки.")
-        return
+    # Разбираем через _parse_game_callback
+    parsed = _parse_game_callback(data, "fav_")
+    if not parsed:
+        # Пробуем старый формат
+        try:
+            _, raw = data.split("fav_", 1)
+            game_title, store = raw.rsplit("|", 1)
+        except (ValueError, IndexError):
+            await query.message.reply_text("❌ Ошибка обработки.")
+            return
+    else:
+        game_title, store = parsed
 
     is_fav = await is_favorite(user_id, game_title, store)
 
@@ -497,14 +516,20 @@ async def game_info_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
 
     user_id = query.from_user.id
-    data = query.data  # game_info_GameTitle|Store
+    data = query.data  # game_info_steam:gametitle
 
-    try:
-        _, raw = data.split("game_info_", 1)
-        game_title, store = raw.rsplit("|", 1)
-    except (ValueError, IndexError):
-        await query.message.reply_text("❌ Ошибка обработки.")
-        return
+    # Разбираем через _parse_game_callback
+    parsed = _parse_game_callback(data, "game_info_")
+    if not parsed:
+        # Пробуем старый формат
+        try:
+            _, raw = data.split("game_info_", 1)
+            game_title, store = raw.rsplit("|", 1)
+        except (ValueError, IndexError):
+            await query.message.reply_text("❌ Ошибка обработки.")
+            return
+    else:
+        game_title, store = parsed
 
     game = await get_deal_by_title(game_title, store)
     is_fav = await is_favorite(user_id, game_title, store)
