@@ -99,9 +99,11 @@ async def _check_new_deals_cycle(app: Application) -> None:
     # --- Steam deals ---
     try:
         steam_deals = await get_steam_deals()
+        log(f"CHECK: Got {len(steam_deals)} Steam deals")
         for game in steam_deals:
             deal_id = make_deal_id("steam", game.title)
-            if not await deal_exists(deal_id):
+            is_new = not await deal_exists(deal_id)
+            if is_new:
                 log(f"CHECK: New Steam deal: {game.title}")
                 await add_known_deal(
                     deal_id, game.title, "Steam",
@@ -120,8 +122,7 @@ async def _check_new_deals_cycle(app: Application) -> None:
                     "rating_percent": game.rating_percent,
                     "genres": game.genres,
                 })
-
-            # Обновляем кэш в БД
+            # Всегда обновляем кэш (актуальные цены)
             await _update_deals_cache(game, "steam")
     except Exception as e:
         log(f"CHECK: Steam deals error: {e}")

@@ -222,7 +222,7 @@ async def get_epic_deals():
                 original_price = f"{original_price_cents / 100:.2f}$"
                 discounted_price = f"{discount_price_cents / 100:.2f}$"
 
-                ame = GameDeal(
+                game = GameDeal(
                     title=title,
                     original_price=original_price,
                     discounted_price=discounted_price,
