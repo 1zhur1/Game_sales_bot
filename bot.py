@@ -239,6 +239,14 @@ def main():
         time.sleep(60)
         return
 
+    # Создаём новый event loop для каждого запуска
+    # Это нужно чтобы избежать "Event loop is closed" после перезапуска
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    except Exception:
+        pass
+
     app = (
         Application.builder()
         .token(BOT_TOKEN)
@@ -251,8 +259,8 @@ def main():
     log("Handlers registered")
     logger.info("Bot started successfully")
 
-    # run_polling блокируется пока бот работает
-    # Watchdog перезапустит бота если он упадёт
+    # run_polling с close_loop=False чтобы не убивать loop
+    # Если крашнется — watchdog перезапустит
     app.run_polling(
         drop_pending_updates=True,
         allowed_updates=["message", "callback_query"],
