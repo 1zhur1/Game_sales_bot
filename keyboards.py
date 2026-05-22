@@ -98,7 +98,10 @@ def my_menu_keyboard():
     """Раздел пользователя: подписки, избранное."""
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("📌 Подписки", callback_data="my_subscriptions_0"),
+            InlineKeyboardButton("🔔 Подписаться на игру", callback_data="subscribe_menu"),
+        ],
+        [
+            InlineKeyboardButton("📌 Мои подписки", callback_data="my_subscriptions_0"),
         ],
         [
             InlineKeyboardButton("⭐ Избранное", callback_data="my_favorites_0"),
