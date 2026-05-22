@@ -231,21 +231,19 @@ async def post_init(app):
 # MAIN
 # ═══════════════════════════════════════════════════════════════
 
-def main():
+def run_bot():
+    """Запускает бота с собственным event loop."""
     log("Starting bot...")
 
     if not BOT_TOKEN:
         log("ERROR: BOT_TOKEN missing")
-        time.sleep(60)
         return
 
-    # Создаём новый event loop для каждого запуска
-    # Это нужно чтобы избежать "Event loop is closed" после перезапуска
-    try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    except Exception:
-        pass
+    # Создаём свежий event loop для этого запуска
+    # Это критично — run_polling закрывает loop после остановки,
+    # и следующий запуск упадёт с "Event loop is closed"
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
 
     app = (
         Application.builder()
@@ -259,12 +257,33 @@ def main():
     log("Handlers registered")
     logger.info("Bot started successfully")
 
-    # run_polling с close_loop=False чтобы не убивать loop
-    # Если крашнется — watchdog перезапустит
-    app.run_polling(
-        drop_pending_updates=True,
-        allowed_updates=["message", "callback_query"],
-    )
+    try:
+        app.run_polling(
+            drop_pending_updates=True,
+            allowed_updates=["message", "callback_query"],
+        )
+    except RuntimeError as e:
+        if "Event loop is closed" in str(e):
+            log("Event loop was closed (expected after shutdown)")
+        else:
+            log(f"RuntimeError: {e}")
+    except Exception as e:
+        log(f"Bot error: {e}")
+
+def main():
+    while True:
+        try:
+            run_bot()
+            break  # нормальное завершение
+        except KeyboardInterrupt:
+            log("Bot stopped by user")
+            break
+        except Exception as e:
+            log(f"Bot crashed: {e}")
+            import traceback
+            log(traceback.format_exc())
+            log("Restarting in 5 seconds...")
+            time.sleep(5)
 
 
 if __name__ == "__main__":
